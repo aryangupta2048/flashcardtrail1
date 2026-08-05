@@ -245,7 +245,7 @@ with tab_flash:
         <div style="
             border: 1px solid #ddd; border-radius: 12px; padding: 32px;
             min-height: 160px; display:flex; align-items:center; justify-content:center;
-            text-align:center; font-size:20px; background-color:#fafafa;">
+            text-align:center; font-size:20px; background-color:#fafafa; color:#111111;">
             {card['answer'] if st.session_state.show_answer else card['question']}
         </div>
         """
