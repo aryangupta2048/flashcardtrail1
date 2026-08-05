@@ -22,6 +22,27 @@ from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 
 
+def get_text(response):
+    """Safely extract plain text from an LLM response.
+
+    Gemini 3.x models can return `.content` as a list of content blocks
+    (e.g. text/thinking parts) instead of a plain string, so this
+    normalizes both shapes into a single string.
+    """
+    content = response.content
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        return "".join(parts)
+    return str(content)
+
+
 # ----------------------------- Page Config ----------------------------- #
 st.set_page_config(page_title="Flashcard Generator from Notes", page_icon="🗂️", layout="wide")
 
@@ -121,7 +142,7 @@ NOTES:
 """
 
     response = llm.invoke(prompt)
-    raw = response.content.strip()
+    raw = get_text(response).strip()
 
     # Defensive cleanup in case the model wraps the JSON in a code fence.
     if raw.startswith("```"):
@@ -153,7 +174,7 @@ CONTEXT:
 QUESTION: {question}
 """
     response = llm.invoke(prompt)
-    return response.content, docs
+    return get_text(response), docs
 
 
 def grade_quiz_answer(question, correct_answer, user_answer):
@@ -166,7 +187,7 @@ Student's answer: {user_answer}
 Judge if the student's answer is substantially correct (minor wording differences are fine).
 Respond ONLY with valid JSON: {{"correct": true/false, "feedback": "one short sentence"}}"""
     response = llm.invoke(prompt)
-    raw = response.content.strip().strip("`")
+    raw = get_text(response).strip().strip("`")
     if raw.startswith("json"):
         raw = raw[4:]
     try:
