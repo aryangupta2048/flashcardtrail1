@@ -6,8 +6,8 @@ automatically generates flashcards from the content, and offers a
 revision / quiz mode to test recall.
 
 Pipeline:
-    PDF Upload -> PyPDFLoader -> Text Chunking -> OpenAI Embeddings
-    -> FAISS Vector Store -> LLM Flashcard Generation -> Flashcard / Quiz UI
+    PDF Upload -> PyPDFLoader -> Text Chunking -> Gemini Embeddings
+    -> FAISS Vector Store -> Gemini 3.5 Flash Flashcard Generation -> Flashcard / Quiz UI
 """
 
 import os
@@ -19,7 +19,7 @@ import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 
 
 # ----------------------------- Page Config ----------------------------- #
@@ -53,9 +53,9 @@ with st.sidebar:
     st.title("🗂️ Flashcard Generator")
     st.caption("RAG over your uploaded notes")
 
-    api_key = st.text_input("OpenAI API Key", type="password", value=os.getenv("OPENAI_API_KEY", ""))
+    api_key = st.text_input("Google (Gemini) API Key", type="password", value=os.getenv("GOOGLE_API_KEY", ""))
     if api_key:
-        os.environ["OPENAI_API_KEY"] = api_key
+        os.environ["GOOGLE_API_KEY"] = api_key
 
     st.divider()
 
@@ -67,7 +67,7 @@ with st.sidebar:
     process_btn = st.button("Process Notes", type="primary", use_container_width=True)
 
     st.divider()
-    st.caption("Tech stack: Streamlit · LangChain · FAISS · OpenAI")
+    st.caption("Tech stack: Streamlit · LangChain · FAISS · Gemini 3.5 Flash")
 
 
 # --------------------------- Core RAG Pipeline --------------------------- #
@@ -93,13 +93,13 @@ def load_and_chunk_pdf(uploaded_file, chunk_size=1000, chunk_overlap=150):
 
 def build_vectorstore(chunks):
     """Embed chunks and build a FAISS vector store."""
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
     return FAISS.from_documents(chunks, embeddings)
 
 
 def generate_flashcards(chunks, num_cards=10):
     """Use an LLM to turn note chunks into structured Q&A flashcards."""
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.3)
 
     # Sample chunks so we cover the breadth of the notes without
     # blowing past context limits on very long documents.
@@ -140,7 +140,7 @@ NOTES:
 
 def answer_from_notes(vectorstore, question, k=4):
     """RAG: retrieve relevant chunks and answer a question about the notes."""
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.2)
     docs = vectorstore.similarity_search(question, k=k)
     context = "\n\n".join(d.page_content for d in docs)
 
@@ -158,7 +158,7 @@ QUESTION: {question}
 
 def grade_quiz_answer(question, correct_answer, user_answer):
     """Use the LLM as a lenient grader for free-text quiz answers."""
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0)
     prompt = f"""Question: {question}
 Correct answer: {correct_answer}
 Student's answer: {user_answer}
@@ -178,7 +178,7 @@ Respond ONLY with valid JSON: {{"correct": true/false, "feedback": "one short se
 # ------------------------------ Processing ------------------------------- #
 if process_btn:
     if not api_key:
-        st.sidebar.error("Please enter your OpenAI API key.")
+        st.sidebar.error("Please enter your Google (Gemini) API key.")
     elif not uploaded_file:
         st.sidebar.error("Please upload a PDF of your notes.")
     else:
